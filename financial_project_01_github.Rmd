@@ -1,0 +1,491 @@
+---
+title: "GameStop Financial Analysis and Revenue Forecasting"
+author: "Nathasya Pramudita"
+date: "2024-06-15"
+output:
+  github_document:
+  toc: TRUE
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+# load the packages
+library(readr)
+library(readxl) # for reading xml type
+library(fpp3) # package latest vers for time series models (tibble, dplyr, tidyr, lubridate, ggplot2, tsibble, feasts)
+library(forecast) # # forecasting functions for ts and linear models
+```
+
+
+# GameStop Corp Financial Analysis
+## Of Their Financial Statement fiscal year of 2018 - 2023
+
+### Introduction
+
+GamesStop is retail company that selling electronics, and merchandise that focus in gaming sector.
+Their categories sale of product in merchandise consist of:
+  
+1. *Hardware and accessories*: GameStop offer new and pre-owned gaming platforms from the major console brand. The current generation of consoles include the Sony PlayStation 5, Microsoft Xbox Series X, and Nintendo Switch and all accessories product for gaming purpose. Some hardware that they sell is from GPU computer to all hardware for console platforms.
+
+2. *Software*: GameStop offer new and pre-owned gaming software for current and certain prior generation consoles. GameStop also sell a wide variety of in-game digital currency, digital downloadable content and full-game downloads.
+
+3. *Collectibles*: Collectibles consist of apparel, toys, trading cards, gadgets and other retail products for pop culture and technology enthusiasts. Collectibles also included digital asset wallet and NFT marketplace activities in fiscal 2023. **However, digital asset wallet and NFT marketplace activities were wound down in the fourth quarter of 2023.**
+
+Something that makes GameStop unique with other companies that have the same model business is that have, what they called *Trade-In Program*. Trade-in program is the ability for customers to exchange their goods for cash or credit (and that credit can be used to purchase GameStop product, thus makes company's alternative of revenues).
+
+### Main Objection
+
+The main objection of what I want to achieve from this analysis is:
+
+- Understanding GameStop financial situation by conducting financial ratios and comparing it to their competitor and global market average ratio in the same type of business.
+- Forecasting GameStop revenue for the next 10 quarters using forecasting methods.
+- Create solution for some of GameStop problems, and
+- Finding new segment market.
+
+```
+About dataset: This dataset is obtain from [GameStop Financial Statement](https://gamestop.gcs-web.com/sec-filings) that the company's official web publish to the public. The dataset edited by me using Tabularpdf to extract table from pdf files, and Tidyverse packages to read, cleaning, and manipulate it. The data is gathered from 30 March 2015 to 27 March 2024 financial statement.
+```
+
+---
+
+#### GameStop Financial Ratios
+
+To understand financial health of the company, we need to run some financial ratio by analyzing their financial statement. There's a bunch of variety of financial ratio that analyst can focus on (depending on their type of business and the target that company's want to achieve). But in this case study, we're gonna focus on their **profitability**, **leverage**, **efficiency**, and **liquidity**  ratio.
+
+We also gonna compare GameStop financial ratios against their competitor, and see average ratio of retail business.
+
+```{r intro, include=FALSE}
+# load data set
+# gamestop data set
+balance_sheet <- read_csv("~/RStudio/RMarkdown/financial_project_01/Excel/gamestop/wide dataframe/balance_sheet.csv") %>% 
+  filter(year %in% c("2019", "2020", "2021", "2022", "2023", "2024"))
+income_statement <- read_csv("~/RStudio/RMarkdown/financial_project_01/Excel/gamestop/wide dataframe/income_statement.csv") %>% 
+  filter(year %in% c("2018", "2019", "2020", "2021", "2022", "2023"))
+cash_flow <- read_csv("~/RStudio/RMarkdown/financial_project_01/Excel/gamestop/wide dataframe/cash_flow.csv") %>% filter(year %in% c("2018", "2019", "2020", "2021", "2022", "2023"))
+# best buy dataset
+balance_sheet_bb <- read_csv("~/RStudio/RMarkdown/financial_project_01/Excel/bestbuy/wide data frame/balance_sheet_bb.csv")
+income_statement_bb <- read_csv("~/RStudio/RMarkdown/financial_project_01/Excel/bestbuy/wide data frame/income_statement_bb.csv")
+cash_flow_bb <- read_csv("~/RStudio/RMarkdown/financial_project_01/Excel/bestbuy/wide data frame/cash_flow_bb.csv")
+# binding three financial statemnet into one
+# gamestop
+gamestop_fs <- bind_cols(balance_sheet, income_statement, cash_flow)
+# bestbuy
+bestbuy_fs <- bind_cols(balance_sheet_bb, income_statement_bb, cash_flow_bb)
+```
+
+##### Profitability Ratios
+
+The first ratio that I want to analyze is profitability ratio. I want to see how well GameStop generate profit (income) against their competitors. We're gonna focus on **Return Ratios** (which is consist of ROE, ROA, ROCE) and **Margin Ratios** (consist of Gross Margin Ratio, Operating Profit Margin, and Net Profit Margin) of GameStop and their competitor.
+
+- Return Ratios
+
+```{r return ratios}
+# Return ratio of GameStop
+return_ratio <- gamestop_fs %>% 
+  mutate("ROE" = `Net income...45` / `Total stockholders' equity`,
+         "ROA" = `Net income...45` / `Total assets`,
+         "ROCE" = `Operating earnings` / (`Total assets` - `Total current liabilities`)) %>% 
+  rename("Year" = year...32) %>% 
+  select(Year, ROE, ROA, ROCE)
+# Create table for return ratio
+knitr::kable(return_ratio, caption = "Return Ratio of GameStop")
+
+# Return ratio of BestBuy
+return_ratio_bb <- bestbuy_fs %>% 
+  mutate("ROE" = `Net earnings...50` / `Total equity`,
+         "ROA" = `Net earnings...50` / `Total assets`,
+         "ROCE" = `Operating income` / (`Total assets` - `Total current liabilities`)) %>% 
+  rename("Year" = year...37) %>% 
+  select(Year, ROE, ROA, ROCE)
+# Create table for return ratio
+knitr::kable(return_ratio_bb, caption = "Return Ratio of Competitor Company")
+```
+
+**Summary Analysis of Return Ratios:**
+
+From comparative analysis above, GameStop doesn't generate much profit, either it's from ROE, ROA, or ROCE. Their Return on Equity average is -0.43 from the span of 6 years (2018-2023), and only generate positive value in 2023 with 0.5% of profitability to their shareholders or investors. Eventho the average of ROE in retail industry (according to [this](https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/roe.html)) is 19.2%. While their competitor is beyond above them with average of ROE is 50%, their generated profit from investing in asset (ROA) is 9% and 30% from their ROCE.
+
+From the result above, we can conclude that competitor have higher Return Ratio compare to GameStop. Competitor can manage their profitability return to their shareholders/investors, have good management using their investment in assets to generated more profit to the company, and how efficiently a company
+is using its capital to generate profits
+
+- Margin Ratios
+
+```{r margin ratio}
+# Margin ratio of GameStop
+margin_ratio <- gamestop_fs %>% 
+  mutate("Gross Margin Ratio" = round((`Gross profit` / `Net sales`) * 100, digits = 2),
+         "Operating Profit Margin" = round((`Operating earnings` / `Net sales`) * 100, digits = 2),
+         "Net Profit Margin" = round((`Net income...45` / `Net sales`) * 100, digits = 2)) %>% 
+  rename("Year" = year...32) %>% 
+  select(Year, `Gross Margin Ratio`, `Operating Profit Margin`, `Net Profit Margin`)
+# Create table for margin ratio of GameStop
+knitr::kable(margin_ratio, caption = "Margin Ratio of GameStop")
+# Margin ratio of BestBuy
+margin_ratio_bb <- bestbuy_fs %>% 
+  mutate("Gross Margin Ratio" = round((`Gross profit` / `Revenue`) * 100, digits = 2),
+         "Operating Profit Margin" = round((`Operating income` / `Revenue`) * 100, digits = 2),
+         "Net Profit Margin" = round((`Net earnings...50`/ `Revenue`) * 100, digits = 2)) %>% 
+  rename("Year" = year...37) %>% 
+  select(Year, `Gross Margin Ratio`, `Operating Profit Margin`, `Net Profit Margin`)
+# Create table for margin ratio of BestBuy
+knitr::kable(margin_ratio_bb, caption = "Margin Ratio of Competitor Company")
+
+```
+
+**Summary Analysis of Margin Ratios:**
+
+Their Gross Profit Margin is head to head (with GameStop average of 25.4% and their competitor is 22.4% for the past of 6 years), that means GameStop ratio of their gross income (already subtract by COGS) against their total revenue is quite good. However their Operating Profit Margin and Net Profit Margin still in negative zone. Tho they displying a slightly better result each time, and if there's nothing changing in their management, perhaps they can bouncing back for the next 5 years (if my forcasting is right). Meanwhile, eventho their competitor Margin Ratio is better than GameStop, their number is gradually decrease each years, while GameStop Margin Ratio increase each years.
+
+
+##### Leverage Ratios
+
+Leverage ratio is financial measurement that look at how much capital that company's have comes in the form of debt (loans) or assesses the ability of a company to meet its financial obligations. This ratios indicates the level of debt incurred by a business entity (debt) against several other accounts in its financial statement. There's a variety of leverage ratio that analyst can choose (depending on the companies business model). But for this case, I'm gonna used three variety of leverage ratio, which is **Debt to Equity**, **Equity Ratio**, and **Debt Ratio**.
+
+```{r leverage ratio}
+# create leverage ratio data frame
+# GameStop
+leverage_ratio <- gamestop_fs %>% 
+  mutate("Debt to Equity" = `Long-term debt` / `Total stockholders' equity`,
+         "Equity Ratio" = `Total assets` / `Total stockholders' equity`,
+         "Debt Ratio" = (`Notes payable` + `Long-term debt`) / `Total assets`) %>%
+  rename("Year" = year...32) %>% 
+  select(Year, `Debt to Equity`, `Equity Ratio`, `Debt Ratio`)
+# create table for leverage ratio of GameStop
+knitr::kable(leverage_ratio, caption = "Leverage Ratio of GameStop Corp")
+#Best Buy
+leverage_ratio_bb <- bestbuy_fs %>% 
+  mutate("Debt to Equity" = `Long-term debt` / `Total equity`,
+         "Equity Ratio" = `Total assets` / `Total equity`,
+         "Debt Ratio" = (`Short-term debt` + `Long-term debt`) / `Total assets`) %>% 
+  rename("Year" = year...37) %>% 
+  select(Year, `Debt to Equity`, `Equity Ratio`, `Debt Ratio`)
+# create table for leverage ratio of BestBuy
+knitr::kable(leverage_ratio_bb, caption = "Leverage Ratio of Competitor Company")
+```
+
+**Summary Analysis of Leverage Ratios:**
+
+GameStop Leverage Ratio compare to their competitor doesn't have that much significant gap. With their average ratio of their Debt to Equity is 0.26, while their competitor is 0.37. And their Equity Ratio average of 3.31 and their competitor with 4.82. Every years GameStop Debt to Equity ratio is decreasing, meaning that their company's relying their Equity accounts less and less with their debt.
+
+While there's *NA* values in their Debt Ratio account for both side of company's, it indicate that there's some missing values in one of numerator accounts (either it's from ST, LT debt, or other fixed payment).
+
+
+##### Efficiency Ratio
+
+Now, we're gonna focus on measuring how effective GameStop is at selling their inventory to customers, how quickly they're able to collect cash back from them, and how reliable they're at paying off their vendors. Answering this problems, we need to use **Accounts Receivable Turnover Ratio**, **Account Receivable Days**, **Asset Turnover Ratio**, **Inventory Turnover RAtio** and **Inventory Turnover Days**.
+The reason why we analyze efficiency ratio of GameStop is to see how efficient GameStop is using their assets and liabilities internally to generate revenue. Now, let's create table of this ratio.
+
+```{r efficiency ratio}
+# Load new data frame
+avg_gamestop <- read_excel("~/RStudio/RMarkdown/financial_project_01/Excel/gamestop/wide dataframe/average_account_gamestop.xlsx")
+avg_bestbuy <- read_excel("~/RStudio/RMarkdown/financial_project_01/Excel/bestbuy/wide data frame/average_account_bestbuy.xlsx")
+# create efficiency ratio
+# GameStop
+efficiency_ratio <- avg_gamestop %>% 
+  mutate("Assets Turnover" = net_sales / ((assets_ending + assets_beginner) / 2),
+         "Inventory Turnover" = COGS / ((inventory_ending + inventory_beginner) / 2),
+         "Inventory Turnover Days" = round(365 / `Inventory Turnover`, digits = 1)) %>% 
+  select(Year, `Assets Turnover`, `Inventory Turnover`, `Inventory Turnover Days`)
+# create efficiency ratio table to GameStop
+knitr::kable(efficiency_ratio, caption = "Efficiency Ratio of GameStop Corp")
+# BestBuy
+efficiency_ratio_bb <- avg_bestbuy %>% 
+  mutate("Assets Turnover" = net_sales / ((assets_ending + assets_beginner) / 2),
+         "Inventory Turnover" = COGS / ((inventory_ending + inventory_beginner) / 2),
+         "Inventory Turnover Days" = round(365 / `Inventory Turnover`, digits = 1)) %>% 
+  select(Year, `Assets Turnover`, `Inventory Turnover`, `Inventory Turnover Days`)
+# Create efficiency ratio table to BestBuy
+knitr::kable(efficiency_ratio_bb, caption = "Efficiency Ratio of Competitor Company")
+
+```
+
+**Summary Analysis of Efficiency Ratios**
+
+So according to the Efficiency Ratios tables above, GameStop Assets Turnover Ratio is under the average of Retail business type (with ratio over 3.0). While their competitor have better Efficiency Ratio in general compare to GameStop.
+
+This means GameStop needs to push their efficiency of using their assets to generate revenue to increase their Assets Turnover Ratio, so company can gather more dollars from sales that they generated with the assets that the company's owns. (according to this historical data, GameStop doesn't display much progress even after Pandemic long gone). Meanwhile this two Inventory Turnover Ratio and Inventory Turnover Days in average is not that far fetch, with GameStop Turnover Ratio of 5.34 and Inventory Turnover Days 69.6. And their competitors Inventory Turnover Ratio of 6.56 and Inventory Turnover Days of 55.5 (Their competitor is obviously is better at selling their inventory over the years). Tho the average of Inventory Turnover Ratio in this industry is two times higher, with 12.84 ratio.
+
+##### Liquidity Ratios
+
+Liquidity Ratios are used to evaluate the financial soundness of a company. These ratios are often used to determine the riskiness of a firm to creditor or their investor. They consist of Current Ratio, Quick Ratio, Cash Ratio, and Defensive Internal Ratio (DIR). Now, let's create table that consist of this four ratios (usually this four ratios is called Asset Ratios because they're look at a company's balance sheet assets to evaluate liquidity).
+
+- Asset Ratios
+
+```{r asset ratios}
+# Create Asset Ratios
+# GameStop
+asset_ratio <- gamestop_fs %>% 
+  mutate("Current Ratio" = `Total current assets` / `Total current liabilities`,
+         "Cash Ratio" = `Cash and cash equivalents` / `Total current liabilities`,
+         "Daily Expenditure" = (((`Cost of sales` + `Selling, general and administrative expenses` + `Asset impairments`) - `Accumulated depreciation`) / 365),
+         "DIR" = `Total current assets` / `Daily Expenditure`) %>% 
+  rename("Year" = year...32) %>% 
+  select(Year, `Current Ratio`, `Cash Ratio`, DIR)
+# create table of asset ratio GameStop
+knitr::kable(asset_ratio, caption = "Asset Ratio of GameStop")
+# BestBuy
+asset_ratio <- bestbuy_fs %>% 
+  mutate("Current Ratio" = `Total current assets` / `Total current liabilities`,
+         "Cash Ratio" = `Cash and cash equivalents` / `Total current liabilities`,
+         "Daily Expenditure" = (((`Cost of sales` + `Selling, general and administrative expenses` + `Restructuring charges...42`) - `Less accumulated depreciation` ) / 365),
+         "DIR" = `Total current assets` / `Daily Expenditure`) %>% 
+  rename("Year" = year...37) %>% 
+  select(Year, `Current Ratio`, `Cash Ratio`, DIR)
+# Create table of asset ratio BestBuy
+knitr::kable(asset_ratio, caption = "Asset Ratio of Competitor Company")
+```
+
+**Summary of Asset Ratios:**
+
+From Asset Ratios above, GameStop Liquidity Ratio in their current assets against current liabilities is higher than competitor, their cash reserve is almost 1:1 with their current liabilities. Tho it seems upstannding if GameStop decided to loan more money, this can also indicate that GameStop have to much reserved money right now and instead of just make them sit quietly in their bank accounts, it's more wiser to spend it through out their assets or other operation expenses, so that they can generate more revenue to the company's.
+
+And for their Defensive Interval Ratio (DIR) or Basic Defense Interval Ratio (BDIR) is more higher than their competitor, with 162 and 161 respectively. So this mean GameStop can operate for 161 days and remain liquid without tapping into its long-term assets
+
+---
+
+#### Forecasting GameStop revenue
+
+In this chapter, we are gonna focus on forecasting GameStop revenue using statistical models, time series analysis. The data is gathered from Q1 2012 to Q2 2024. We will conduct the most fitted forecasting models for our data There's three type of methods that I will use, which is a bunch of simple forecasting methods that we combine them into one, in our **Benchmark models** (which consist of *Naive Forecasting Method*, *Mean Method*, *Drift Method*, and *Seasonal Naive method*), **Exponential Smoothing**, and **ARIMA** model.
+
+And then we're gonna evaluating accuracy of every forecast models that we use (to see which model fitted most). Without further ado, let's jump in and run what the best method to forecast GameStop revenue data set.
+
+
+```
+Disclamer: There's some insuffencient in this forecasting, for example, the data in here is using 10-Q report which is in
+quarterly. It's much harder to find monthly or weekly report because even IPO companies only have obligation to share their
+quarterly and annualy financial report.
+```
+
+##### Preliminary Analysis
+
+First we need to see all the components in our time series data set. To see if our data have trend, seasonal, and cycles in it or not (finding out if our data is in stationary or non-stationary state). For this we use STL decomposition of time series.
+
+```{r forecasting models}
+
+# Load GameStop 10-Q report
+quarter_revenue <- read_csv("~/RStudio/RMarkdown/financial_project_01/Excel/gamestop/gamestop_quarter_revenue_2012-2024.csv")
+# Create quarter_revenue data set as time series data in tibble format
+quarter_revenue_tibble <- quarter_revenue |>
+  mutate(date = yearquarter(date)) |>
+  as_tsibble(index = date)
+
+```
+
+
+```{r components in ts data}
+comp <- quarter_revenue_tibble |>
+  model(STL(value))
+
+components(comp) |>
+  autoplot()
+```
+
+The STL decomposition function tells us that our data is in non-stationary stage. From the second line graph called `trend`, they give us a explaination that  there's a trend (declining) in our data. The third line graph called `seasonal_year` distribute each quarter. And as you can see that there's seasonal pattern in our data, and good thing that our residual here is exhibit no pattern so whatever model that we will used would capture all information in our data (from the last graph which called `reminder` or data that get capture after subsided trend and seasonal).
+
+Because our data not in stationary state (they have trend and seasonal pattern), when we use model that require it to be stationary (such as ARIMA model) we need to change our data in non-stationary stage first and make the index data in white voice and have zero correlation (ACF).
+
+Now, let's investigate what quarter that boost GameStop the most.
+
+```{r seasonal plot in data set}
+gg_season(quarter_revenue_tibble) +
+  labs(y = "US $ in Million",
+       title = "Check Seasonality of GameStop Revenue",
+       subtitle = "in every quarter report from Q1 2012 to Q2 2024")
+```
+
+After conducting some seasonal plot using `Feasts` packages, we can confidently saying that GameStop generated the most revenue at the beginning of their quarter 1 and gradually falling and in stationary stage from quarter 2 to quarter 4 (and the most declining are in quarter 3). But we find some anomaly in 2014 Q3 to Q4 that their report is hiking more than all the years (if GameStop want to increase their Q4 revenue, they should investigate this anomaly).
+
+And their revenue is continuously falling every years, and their newest report (at the end of quarter 1 2024) is the most deteriorate of all the revenue report.
+
+##### Choosing and Fitting Forecasting Models
+
+Now, let's conduct all the model and we see which one is the most fitting for our forecasting.
+
+1. Benchmark models
+
+Some simple forecast model that I would pick to be my Benchmark models is naive, mean, drift, and seasonal naive. This four models would compete and I will see which one of them that generated accurate model, for me to be use against ETS and ARIMA.
+
+First let's create model table and train our data in it.
+
+```{r benchmark train data}
+quarter_revenue_tibble |>
+  model(
+    NAIVE(value),
+    MEAN(value),
+    SNAIVE(value),
+    RW(value ~ drift())
+  )
+```
+
+After that, we compete them and see which models that give us better forecast. For us to see which one more accurate, we can can measure forecast accuracy by summarizing the forecast errors in scale-dependent errors, percentage errors, and scaled errors. Now, let's run the code.
+
+```{r benchmark accuracy}
+# compare the accuracy with every benchmark model
+quarter_revenue_tibble |>
+  stretch_tsibble(.init = 15) |>
+  model(
+    MEAN(value),
+    NAIVE(value),
+    SNAIVE(value),
+    RW(value ~ drift())
+  ) |>
+  forecast(h = 5) |>
+  accuracy(quarter_revenue_tibble) |>
+  select(.model, RMSE:MAPE)
+```
+
+From the table above, we can see clearly that `seasonal naive` have more better forecasting method than any other benchmark methods. Now, we'll gonna compete seasonal naive method with `Exponential Smoothing` and `ARIMA`, and see which one better to gain accurate result for our forecasting method.
+
+But before that. Let's see the residuals of SNAIVE model first, to see if seasonal naive model is indeed accurate for our data.
+
+```{r snaive model component}
+quarter_revenue_tibble |>
+  model(SNAIVE(value)) |>
+  gg_tsresiduals()
+```
+
+*Conclusion from Seasonal Naive residuals finding:* From the graph of residual above. Our data is in white noise, there's no correlation shown that the data which means the model is capturing every information in our data, and the residual histogram is skewed from the left (meaning there's some outlier and not standing in the mean. Make the standard deviation away from the mean).
+
+2. Exponential Smoothing
+
+First, we train our data. And find which ETS model that more precise for us to use.
+
+```{r ETS train data}
+quarter_revenue_tibble |>
+  model(ETS(value)) |>
+  report()
+```
+Now let's compare it to our benchmark model.
+
+```{r compare accuracy of ETS and SNaive}
+quarter_revenue_tibble |>
+  stretch_tsibble(.init = 15) |>
+  model(SNAIVE(value),
+        ETS(value)) |>
+  forecast(h = 5) |>
+  accuracy(quarter_revenue_tibble) |>
+  select(.model, RMSE:MAPE)
+```
+
+ETS and SNAIVE didn't have much differences. But so far, Seasonal Naive still hold better accuracy than Exponential Smoothing model. So we're gonna used Seasonal Naive model to compete with ARIMA model.
+
+But before that, let's draw some graph of our two forecasting models (test data) against real data (train data) that already exist. For this we'll forecast the data from 2021 Q2. And see if our forecast is similar to the data that we already attained.
+
+```{r ploting SNAIVE and ETS}
+# create data frame of all the benchmark models that we'll use
+# Extract training data set
+quarter_revenue_train <- quarter_revenue_tibble |>
+  filter_index(. ~ '2022 Q1')
+
+# Create training data set
+test <- quarter_revenue_train |>
+  model(
+    snaive = SNAIVE(value),
+    ets = ETS(value)
+    )
+
+# Create test data set
+test_fc <- test |>
+  forecast(h = 10)
+
+# autoplot this two variable
+test_fc |>
+  autoplot(filter_index(quarter_revenue_tibble), level = NULL) +
+  labs(title = "GameStop Revenue forecast with ETS and SNAIVE model",
+       subtitle = "Against real data",
+       y = "US $ in Million",
+       x = "")
+```
+
+Plot line above is from training data using ETS and Seasonal Naive models and we combine it with test data (with 20% of training data). To see if our models is indeed have the same result as the real time data. Turn up, test data for 2024 Q1 is much more higher than real time data. From this we can conclude that if we want to used ETS or SNaive, we take the first quantile of our forecast model.
+
+3. ARIMA model
+
+Now, let's train our data using ARIMA model, and see which ARIMA series that fitted our data perfectly.
+
+```{r arima model}
+# Finding the best ARIMA model
+# using automate method and manualy
+quarter_revenue_tibble |>
+  model(ARIMA(value)) |>
+  report()
+
+```
+
+With ARIMA() function from `fables` package, we can automatically finding which the best series that fitted best with our data. They also create differencing automatically, so it makes our data in stationary mode. Now let's check if our data is indeed in stationary mode.
+
+```{r check if data in stationary mode}
+quarter_revenue_tibble |>
+  model(ARIMA(value)) |>
+  gg_tsresiduals()
+```
+
+From the graphs above, the residual of our data is already in white noise. There's no correlation between each lag observations, and our residual is in bell shapes (falling in the middle of mean). 
+
+Now let's check the accuracy between ARIMA and Seasonal Naive models.
+
+```{r check accuracy between arima and ets}
+# Check which is better ETS or ARIMA models
+# Cross validation
+quarter_revenue_tibble |>
+  stretch_tsibble(.init = 15) |>
+  model(
+    ARIMA(value),
+    SNAIVE(value)
+  ) |>
+  forecast(h = 5) |>
+  accuracy(quarter_revenue_tibble) |>
+  select(.model, RMSE:MAPE) # ARIMA have higher more accuracy than ETS
+
+```
+
+From the model table above ARIMA has slightly better at capturing our data and make forecast prediction more better than Seasonal Naive model. So for the final decision, we're gonna pick ARIMA model to forecast Revenue of GameStop for the next 10 Quarter report.
+
+But before that. Let's draw line chart between training data and our test data. To see if ARIMA model prediction is not to far fetch from our real time data. For this, I would take 20% of our total training data to sample it.
+
+```{r plot training and test data}
+# Create train data
+quarter_revenue_tibble |>
+  filter_index(. ~ "2022 Q1") |>
+  model(ARIMA(value))|>
+  forecast(h = 10) |>
+  autoplot(filter_index(quarter_revenue_tibble), level = NULL) +
+  labs(title = "GameStop Forecasting Revenue",
+       y = "USD in Million")
+```
+
+The result for the test is the ARIMA model is almost perfectly forecast the seasonal hikes in our data (from 2022 Q1 to 2024 Q3).The test data of 2022 Q2 (in mean) is 1170, while real time data is 1378.0. And forecast for 2023 Q1 is 2115, while the real time data is 2226.
+
+So I can confidently say that our forecasting using ARIMA model for the next 10 Quarter report would be not too far for the actual data.
+
+Now, let's plot our forecast.
+
+```{r create forecasting method using ARIMA model}
+# forecasting using arima model(0,0,1)(1,1,0)[4]
+quarter_revenue_tibble |>
+  model(ARIMA(value)) |>
+  forecast(h = 10) |>
+  autoplot(quarter_revenue_tibble) +
+  labs(y = "US $ in Million",
+       title = "GameStop Revenue Forcast",
+       subtitle = "Using ARIMA Model")
+```
+
+*Conclusion:*
+
+After conducting analysis of what kind of forecast method that can accurately forecast our next 10 Quarter reports (meaning 2024 Q3 to 2026 Q4). We get result that ARIMA model (1,0,0)(0,1,1)[4] w/ drift ) is the most fitted model compare to our benchmark and ETS. With standar deviation residual of 258.0814 and AIC=647.67,  AICc=648.64,  BIC=654.98 (compare to ETS with AIC=740.1598, AICc=742.8264, BIC=753.5439).
+
+And this is the table for our forecast data using ARIMA model.
+
+```{r forecast table}
+# Create train data
+quarter_revenue_tibble |>
+  filter_index(. ~ "2024 Q2")|>
+  model(ARIMA(value)) |>
+  forecast(h = 10)
+```
+
